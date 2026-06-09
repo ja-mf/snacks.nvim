@@ -163,6 +163,7 @@ local defaults = {
       filename_only = false, -- only show the filename
       icon_width = 2, -- width of the icon (in characters)
       git_status_hl = true, -- use the git status highlight group for the filename
+      mtime = true, -- show mtime age when available
     },
     selected = {
       show_always = false, -- only show the selected column when there are multiple selections

@@ -10,6 +10,13 @@ M.actions = Actions.actions
 M._state = setmetatable({}, { __mode = "k" })
 local uv = vim.uv or vim.loop
 
+---@param path string
+---@return number?
+local function stat_mtime(path)
+  local stat = uv.fs_stat(path)
+  return stat and stat.mtime and stat.mtime.sec or nil
+end
+
 ---@class snacks.picker.explorer.Item: snacks.picker.finder.Item
 ---@field file string
 ---@field dir? boolean
@@ -19,6 +26,7 @@ local uv = vim.uv or vim.loop
 ---@field sort? string
 ---@field internal? boolean internal parent directories not part of fd output
 ---@field status? string
+---@field mtime? number
 
 local function norm(path)
   return svim.fs.normalize(path)
@@ -248,6 +256,7 @@ function M.explorer(opts, ctx)
         last = true,
         type = node.type,
         severity = (not node.dir or not node.open or opts.diagnostics_open) and node.severity or nil,
+        mtime = node.mtime,
       }
       if last[node.parent] then
         last[node.parent].last = false
@@ -259,7 +268,13 @@ function M.explorer(opts, ctx)
       end
       items[node.path] = item
       cb(item)
-    end, { hidden = opts.hidden, ignored = opts.ignored, exclude = opts.exclude, include = opts.include })
+    end, {
+      hidden = opts.hidden,
+      ignored = opts.ignored,
+      exclude = opts.exclude,
+      include = opts.include,
+      mtime_sort = opts.mtime_sort,
+    })
   end
 end
 
@@ -307,6 +322,13 @@ function M.search(opts, ctx)
       -- hierarchical sorting
       if item.dir then
         item.sort = parent.sort .. "!" .. basename .. " "
+      elseif opts.tree and (opts.mtime_sort == "asc" or opts.mtime_sort == "desc") then
+        item._mtime = stat_mtime(item.file) or 0
+        local stamp = item._mtime
+        if opts.mtime_sort == "desc" then
+          stamp = 9999999999 - stamp
+        end
+        item.sort = parent.sort .. "#" .. string.format("%010d", stamp) .. " " .. basename .. " "
       else
         item.sort = parent.sort .. "#" .. basename .. " "
       end
@@ -317,6 +339,9 @@ function M.search(opts, ctx)
         item.dir = node.dir
         item.type = node.type
         item.status = (not node.dir or opts.git_status_open) and node.status or nil
+        item.mtime = node.mtime or item._mtime
+      elseif item._mtime then
+        item.mtime = item._mtime
       end
 
       if opts.tree then

@@ -163,11 +163,12 @@ end
 ---@param cwd string
 ---@param path? string
 ---@param up? boolean
-function M.next(cwd, path, up)
+---@param opts? {mtime_sort?: "asc"|"desc"}
+function M.next(cwd, path, up, opts)
   local Tree = require("snacks.explorer.tree")
   return Tree:next(cwd, function(node)
     return node.status ~= nil
-  end, { up = up, path = path })
+  end, { up = up, path = path, mtime_sort = opts and opts.mtime_sort })
 end
 
 return M

@@ -167,8 +167,21 @@ function M.actions.explorer_close_all(picker)
   M.update(picker, { refresh = true })
 end
 
+function M.actions.explorer_toggle_mtime(picker)
+  local current = picker.opts.mtime_sort
+  if current == "desc" then
+    picker.opts.mtime_sort = "asc"
+  elseif current == "asc" then
+    picker.opts.mtime_sort = "desc"
+  else
+    picker.opts.mtime_sort = "desc"
+  end
+  picker.list:set_target()
+  picker:find()
+end
+
 function M.actions.explorer_git_next(picker, item)
-  local node = Git.next(picker:cwd(), item and item.file)
+  local node = Git.next(picker:cwd(), item and item.file, nil, { mtime_sort = picker.opts.mtime_sort })
   if node then
     M.update(picker, { target = node.path })
   end
@@ -191,7 +204,7 @@ function M.actions.explorer_paste(picker)
 end
 
 function M.actions.explorer_git_prev(picker, item)
-  local node = Git.next(picker:cwd(), item and item.file, true)
+  local node = Git.next(picker:cwd(), item and item.file, true, { mtime_sort = picker.opts.mtime_sort })
   if node then
     M.update(picker, { target = node.path })
   end
@@ -334,7 +347,7 @@ function M.actions.explorer_diagnostic(picker, item, action)
       return false
     end
     return action.severity == nil or node.severity == action.severity
-  end, { up = action.up, path = item and item.file })
+  end, { up = action.up, path = item and item.file, mtime_sort = picker.opts.mtime_sort })
   if node then
     M.update(picker, { target = node.path })
   end

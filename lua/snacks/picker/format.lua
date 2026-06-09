@@ -4,6 +4,44 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 
+---@param age number
+---@return string
+local function short_age(age)
+  if age < 60 then
+    return "<1m"
+  elseif age < 60 * 60 then
+    return tostring(math.floor(age / 60)) .. "m"
+  elseif age < 60 * 60 * 24 then
+    return tostring(math.floor(age / (60 * 60))) .. "h"
+  elseif age < 60 * 60 * 24 * 7 then
+    return tostring(math.floor(age / (60 * 60 * 24))) .. "d"
+  elseif age < 60 * 60 * 24 * 30 then
+    return tostring(math.floor(age / (60 * 60 * 24 * 7))) .. "w"
+  end
+  return tostring(math.floor(age / (60 * 60 * 24 * 30))) .. "M"
+end
+
+function M.mtime(item, picker)
+  if not item.mtime then
+    return {}
+  end
+  if picker.opts.formatters.file.mtime == false then
+    return {}
+  end
+  local age = os.time() - item.mtime
+  if age < 0 then
+    age = 0
+  end
+  return {
+    {
+      col = 0,
+      virt_text = { { short_age(age), "SnacksPickerTime" }, { " " } },
+      virt_text_pos = "right_align",
+      hl_mode = "combine",
+    },
+  }
+end
+
 function M.severity(item, picker)
   local ret = {} ---@type snacks.picker.Highlight[]
   local severity = item.severity
@@ -159,6 +197,10 @@ function M.file(item, picker)
 
   if item.severity then
     vim.list_extend(ret, M.severity(item, picker))
+  end
+
+  if item.mtime then
+    vim.list_extend(ret, M.mtime(item, picker))
   end
 
   vim.list_extend(ret, M.filename(item, picker))

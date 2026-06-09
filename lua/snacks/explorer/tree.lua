@@ -12,6 +12,7 @@
 ---@field parent? snacks.picker.explorer.Node
 ---@field last? boolean child of the parent
 ---@field utime? number
+---@field mtime? number
 ---@field children table<string, snacks.picker.explorer.Node>
 ---@field severity? number
 
@@ -24,6 +25,13 @@
 ---@alias snacks.picker.explorer.Snapshot {fields: string[], state:table<snacks.picker.explorer.Node, any[]>}
 
 local uv = vim.uv or vim.loop
+
+---@param path string
+---@return number?
+local function stat_mtime(path)
+  local stat = uv.fs_stat(path)
+  return stat and stat.mtime and stat.mtime.sec or nil
+end
 
 local function norm(path)
   return svim.fs.normalize(path):gsub("/$", ""):gsub("^$", "/")
@@ -146,6 +154,11 @@ function Tree:expand(node)
     local child = self:child(node, name, t)
     child.type = t
     child.dir = t == "directory" or (t == "link" and vim.fn.isdirectory(child.path) == 1)
+    if child.dir then
+      child.mtime = nil
+    else
+      child.mtime = stat_mtime(child.path)
+    end
   end
   for name in pairs(node.children) do
     if not found[name] then
@@ -176,7 +189,7 @@ end
 
 ---@param node snacks.picker.explorer.Node
 ---@param fn fun(node: snacks.picker.explorer.Node):boolean? return `false` to not process children, `true` to abort
----@param opts? {all?: boolean}
+---@param opts? {all?: boolean, mtime_sort?: "asc"|"desc"}
 function Tree:walk(node, fn, opts)
   local abort = false ---@type boolean?
   abort = fn(node)
@@ -187,6 +200,17 @@ function Tree:walk(node, fn, opts)
   table.sort(children, function(a, b)
     if a.dir ~= b.dir then
       return a.dir
+    end
+    if a.dir then
+      return a.name < b.name
+    end
+    local order = opts and opts.mtime_sort or nil
+    if order == "asc" or order == "desc" then
+      local am = a.mtime or 0
+      local bm = b.mtime or 0
+      if am ~= bm then
+        return order == "asc" and am < bm or am > bm
+      end
     end
     return a.name < b.name
   end)
@@ -229,7 +253,7 @@ end
 
 ---@param cwd string
 ---@param cb fun(node: snacks.picker.explorer.Node)
----@param opts? {expand?: boolean}|snacks.picker.explorer.Filter
+---@param opts? {expand?: boolean, mtime_sort?: "asc"|"desc"}|snacks.picker.explorer.Filter
 function Tree:get(cwd, cb, opts)
   opts = opts or {}
   assert_dir(cwd)
@@ -246,7 +270,7 @@ function Tree:get(cwd, cb, opts)
       self:expand(n)
     end
     cb(n)
-  end)
+  end, { mtime_sort = opts.mtime_sort })
 end
 
 ---@param cwd string
@@ -304,7 +328,7 @@ end
 
 ---@param cwd string
 ---@param filter fun(node: snacks.picker.explorer.Node):boolean?
----@param opts? {up?: boolean, path?: string}
+---@param opts? {up?: boolean, path?: string, mtime_sort?: "asc"|"desc"}
 function Tree:next(cwd, filter, opts)
   opts = opts or {}
   local path = opts.path or cwd
@@ -327,7 +351,7 @@ function Tree:next(cwd, filter, opts)
       next = next or (found and node.path ~= path and node) or nil
       prev = not found and node or prev
     end
-  end, { all = true })
+  end, { all = true, mtime_sort = opts.mtime_sort })
   if opts.up then
     return prev or last
   end
